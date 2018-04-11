@@ -14,7 +14,7 @@ Improvements:
 * Uploads would be more efficient with bigger chunks
 * Looks like mega can support server side copy, but it isn't implemented in go-mega
 * Upload can set modtime... - set as int64_t - can set ctime and mtime?
-* Mega can support Link very easily
+* Mega can also support Quota
 */
 
 import (
@@ -764,6 +764,23 @@ func (f *Fs) Hashes() hash.Set {
 	return hash.Set(hash.None)
 }
 
+// PublicLink generates a public link to the remote path (usually readable by anyone)
+func (f *Fs) PublicLink(remote string) (link string, err error) {
+	root, err := f.findRoot(false)
+	if err != nil {
+		return "", errors.Wrap(err, "PublicLink failed to find root node")
+	}
+	node, err := f.findNode(root, remote)
+	if err != nil {
+		return "", errors.Wrap(err, "PublicLink failed to find path")
+	}
+	link, err = f.srv.Link(node, true)
+	if err != nil {
+		return "", errors.Wrap(err, "PublicLink failed to create link")
+	}
+	return link, nil
+}
+
 // ------------------------------------------------------------
 
 // Fs returns the parent Fs
@@ -1040,5 +1057,6 @@ var (
 	_ fs.PutUncheckeder  = (*Fs)(nil)
 	_ fs.DirMover        = (*Fs)(nil)
 	_ fs.DirCacheFlusher = (*Fs)(nil)
+	_ fs.PublicLinker    = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 )

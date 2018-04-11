@@ -78,6 +78,7 @@ type Fs struct {
 	pacer      *pacer.Pacer // pacer for API calls
 	rootNodeMu sync.Mutex   // mutex for _rootNode
 	_rootNode  *mega.Node   // root node - call findRoot to use this
+	mkdirMu    sync.Mutex   // used to serialize calls to mkdir / rmdir
 }
 
 // Object describes a mega object
@@ -286,6 +287,9 @@ func (f *Fs) lookupParentDir(remote string) (dirNode *mega.Node, leaf string, er
 // mkdir makes the directory and any parent directories for the
 // directory of the name given
 func (f *Fs) mkdir(rootNode *mega.Node, dir string) (node *mega.Node, err error) {
+	f.mkdirMu.Lock()
+	defer f.mkdirMu.Unlock()
+
 	parts := splitNodePath(dir)
 	if parts == nil {
 		return rootNode, nil
@@ -550,6 +554,9 @@ func (f *Fs) deleteNode(node *mega.Node) (err error) {
 // purgeCheck removes the directory dir, if check is set then it
 // refuses to do so if it has anything in
 func (f *Fs) purgeCheck(dir string, check bool) error {
+	f.mkdirMu.Lock()
+	defer f.mkdirMu.Unlock()
+
 	rootNode, err := f.findRoot(false)
 	if err != nil {
 		return err

@@ -14,7 +14,7 @@ Improvements:
 * Uploads would be more efficient with bigger chunks
 * Looks like mega can support server side copy, but it isn't implemented in go-mega
 * Upload can set modtime... - set as int64_t - can set ctime and mtime?
-* Mega is also doing retries...
+* Mega can support Link very easily
 */
 
 import (
@@ -29,7 +29,6 @@ import (
 	"github.com/ncw/rclone/fs"
 	"github.com/ncw/rclone/fs/config/flags"
 	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/fserrors"
 	"github.com/ncw/rclone/fs/fshttp"
 	"github.com/ncw/rclone/fs/hash"
 	"github.com/ncw/rclone/lib/pacer"
@@ -128,11 +127,15 @@ func parsePath(path string) (root string) {
 // shouldRetry returns a boolean as to whether this err deserves to be
 // retried.  It returns the err as a convenience
 func shouldRetry(err error) (bool, error) {
-	switch errors.Cause(err) {
-	case mega.EAGAIN, mega.ERATELIMIT, mega.ETEMPUNAVAIL:
-		return true, err
-	}
-	return fserrors.ShouldRetry(err), err
+	// Let the mega library handle the low level retries
+	return false, err
+	/*
+		switch errors.Cause(err) {
+		case mega.EAGAIN, mega.ERATELIMIT, mega.ETEMPUNAVAIL:
+			return true, err
+		}
+		return fserrors.ShouldRetry(err), err
+	*/
 }
 
 // readMetaDataForPath reads the metadata from the path
@@ -166,6 +169,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 	srv := megaCache[user]
 	if srv == nil {
 		srv = mega.New().SetClient(fshttp.NewClient(fs.Config))
+		srv.SetRetries(fs.Config.LowLevelRetries) // let mega do the low level retries
 		srv.SetLogger(func(format string, v ...interface{}) {
 			fs.Infof("*go-mega*", format, v...)
 		})
@@ -990,7 +994,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		}
 	}
 
-	// FInish the upload
+	// Finish the upload
 	var info *mega.Node
 	err = o.fs.pacer.Call(func() (bool, error) {
 		info, err = u.Finish()
